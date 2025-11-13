@@ -28,6 +28,21 @@ $stats['overdue_bills'] = fetchOne("
     WHERE status = 'overdue' OR (status = 'pending' AND due_date < CURDATE())
 ")['count'];
 
+// Priority system statistics
+require_once 'includes/PriorityNumberGeneratorV2.php';
+$priorityGenerator = new PriorityNumberGeneratorV2();
+$priorityStats = $priorityGenerator->getQueueStatistics();
+
+// Total pending priority numbers
+$stats['total_pending_priority'] = $priorityStats['payment']['pending'] + 
+                                  $priorityStats['claims']['pending'] + 
+                                  $priorityStats['registration']['pending'];
+
+// Total served today
+$stats['total_served_today'] = $priorityStats['payment']['served'] + 
+                              $priorityStats['claims']['served'] + 
+                              $priorityStats['registration']['served'];
+
 // Recent activities
 $recent_activities = fetchAll("
     SELECT 
@@ -119,6 +134,48 @@ $monthly_revenue = fetchAll("
             </div>
         </div>
     </div>
+    
+    <div class="col-xl-3 col-md-6 mb-4">
+        <div class="card stats-card">
+            <div class="card-body">
+                <div class="row no-gutters align-items-center">
+                    <div class="col mr-2">
+                        <div class="text-xs font-weight-bold text-uppercase mb-1">Pending Priority</div>
+                        <div class="h5 mb-0 font-weight-bold"><?php echo number_format($stats['total_pending_priority']); ?></div>
+                        <div class="small text-muted">
+                            P: <?php echo $priorityStats['payment']['pending']; ?> | 
+                            C: <?php echo $priorityStats['claims']['pending']; ?> | 
+                            R: <?php echo $priorityStats['registration']['pending']; ?>
+                        </div>
+                    </div>
+                    <div class="col-auto">
+                        <i class="fas fa-clock stats-icon text-info"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-xl-3 col-md-6 mb-4">
+        <div class="card stats-card">
+            <div class="card-body">
+                <div class="row no-gutters align-items-center">
+                    <div class="col mr-2">
+                        <div class="text-xs font-weight-bold text-uppercase mb-1">Served Today</div>
+                        <div class="h5 mb-0 font-weight-bold"><?php echo number_format($stats['total_served_today']); ?></div>
+                        <div class="small text-muted">
+                            P: <?php echo $priorityStats['payment']['served']; ?> | 
+                            C: <?php echo $priorityStats['claims']['served']; ?> | 
+                            R: <?php echo $priorityStats['registration']['served']; ?>
+                        </div>
+                    </div>
+                    <div class="col-auto">
+                        <i class="fas fa-check-circle stats-icon text-success"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
 </div>
 
 <div class="row">
@@ -145,8 +202,9 @@ $monthly_revenue = fetchAll("
                 </h5>
             </div>
             <div class="card-body">
+                <?php $max_visible = 5; $total_acts = count($recent_activities); ?>
                 <div class="list-group list-group-flush">
-                    <?php foreach ($recent_activities as $activity): ?>
+                    <?php $i = 0; foreach ($recent_activities as $activity): if ($i++ >= $max_visible) break; ?>
                     <div class="list-group-item d-flex justify-content-between align-items-start">
                         <div class="ms-2 me-auto">
                             <div class="fw-bold"><?php echo ucfirst(str_replace('_', ' ', $activity['action'])); ?></div>
@@ -156,10 +214,115 @@ $monthly_revenue = fetchAll("
                     </div>
                     <?php endforeach; ?>
                 </div>
+
+                <?php if ($total_acts > $max_visible): ?>
+                <div class="collapse mt-1" id="recentActivitiesCollapse">
+                    <div class="list-group list-group-flush">
+                        <?php $j = 0; foreach ($recent_activities as $activity): if ($j++ < $max_visible) continue; ?>
+                        <div class="list-group-item d-flex justify-content-between align-items-start">
+                            <div class="ms-2 me-auto">
+                                <div class="fw-bold"><?php echo ucfirst(str_replace('_', ' ', $activity['action'])); ?></div>
+                                <small class="text-muted"><?php echo $activity['user_name']; ?></small>
+                            </div>
+                            <small class="text-muted"><?php echo formatDate($activity['created_at'], 'M j, g:i A'); ?></small>
+                        </div>
+                        <?php endforeach; ?>
+                    </div>
+                </div>
+                <div class="text-center mt-2">
+                    <button class="btn btn-sm btn-outline-secondary" data-bs-toggle="collapse" data-bs-target="#recentActivitiesCollapse" aria-expanded="false" aria-controls="recentActivitiesCollapse" id="toggleRecentBtn">
+                        Show more
+                    </button>
+                </div>
+                <script>
+                (function(){
+                    var btn = document.getElementById('toggleRecentBtn');
+                    var target = document.getElementById('recentActivitiesCollapse');
+                    if (!btn || !target) return;
+                    target.addEventListener('shown.bs.collapse', function(){ btn.textContent = 'Show less'; });
+                    target.addEventListener('hidden.bs.collapse', function(){ btn.textContent = 'Show more'; });
+                })();
+                </script>
+                <?php endif; ?>
             </div>
         </div>
     </div>
 </div>
+
+<!-- Priority Queue Status Widget -->
+<?php if (in_array($_SESSION['role'], ['admin', 'cashier'])): ?>
+<div class="row mt-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="card-title mb-0">
+                    <i class="fas fa-ticket-alt me-2"></i>Priority Queue Status
+                </h5>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-4 mb-3">
+                        <div class="card bg-primary text-white">
+                            <div class="card-body text-center">
+                                <h5 class="card-title">Payment Queue</h5>
+                                <h3 class="mb-2"><?php echo $priorityStats['payment']['pending']; ?></h3>
+                                <small>Pending</small>
+                                <div class="mt-2">
+                                    <small>Served: <?php echo $priorityStats['payment']['served']; ?></small>
+                                </div>
+                                <div class="mt-2">
+                                    <small>Window 1</small>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-4 mb-3">
+                        <div class="card bg-danger text-white">
+                            <div class="card-body text-center">
+                                <h5 class="card-title">Claims Queue</h5>
+                                <h3 class="mb-2"><?php echo $priorityStats['claims']['pending']; ?></h3>
+                                <small>Pending</small>
+                                <div class="mt-2">
+                                    <small>Served: <?php echo $priorityStats['claims']['served']; ?></small>
+                                </div>
+                                <div class="mt-2">
+                                    <small>Window 2</small>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-4 mb-3">
+                        <div class="card bg-info text-white">
+                            <div class="card-body text-center">
+                                <h5 class="card-title">Registration Queue</h5>
+                                <h3 class="mb-2"><?php echo $priorityStats['registration']['pending']; ?></h3>
+                                <small>Pending</small>
+                                <div class="mt-2">
+                                    <small>Served: <?php echo $priorityStats['registration']['served']; ?></small>
+                                </div>
+                                <div class="mt-2">
+                                    <small>Window 3</small>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="text-center mt-3">
+                    <a href="<?php echo url('priority_queue_management.php'); ?>" class="btn btn-success me-2">
+                        <i class="fas fa-tasks me-2"></i>Manage Queue
+                    </a>
+                    <a href="<?php echo url('priority_display.php'); ?>" class="btn btn-info me-2">
+                        <i class="fas fa-desktop me-2"></i>View Display
+                    </a>
+                    <a href="<?php echo url('priority_settings.php'); ?>" class="btn btn-warning">
+                        <i class="fas fa-cog me-2"></i>Settings
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+<?php endif; ?>
 
 <div class="row mt-4">
     <!-- Quick Actions -->
@@ -197,11 +360,11 @@ $monthly_revenue = fetchAll("
                     <?php endif; ?>
                     
                     <?php if (in_array($_SESSION['role'], ['admin', 'cashier'])): ?>
-                    <div class="col-md-3 mb-3">
-                        <a href="<?php echo url('priority_calling_system.php'); ?>" class="btn btn-success w-100">
-                            <i class="fas fa-microphone me-2"></i>Priority Calling
-                        </a>
-                    </div>
+					<div class="col-md-3 mb-3">
+						<a href="<?php echo url('priority_queue_management.php'); ?>" class="btn btn-success w-100">
+							<i class="fas fa-ticket-alt me-2"></i>Priority Management
+						</a>
+					</div>
                     <?php endif; ?>
                     
                     <?php if (in_array($_SESSION['role'], ['admin'])): ?>
@@ -217,54 +380,30 @@ $monthly_revenue = fetchAll("
     </div>
 </div>
 
-<script>
-// Revenue Chart
-const ctx = document.getElementById('revenueChart').getContext('2d');
-const revenueChart = new Chart(ctx, {
-    type: 'line',
-    data: {
-        labels: [
-            <?php foreach ($monthly_revenue as $revenue): ?>
-                '<?php echo date('M Y', strtotime($revenue['month'] . '-01')); ?>',
-            <?php endforeach; ?>
-        ],
-        datasets: [{
-            label: 'Monthly Revenue',
-            data: [
-                <?php foreach ($monthly_revenue as $revenue): ?>
-                    <?php echo $revenue['total']; ?>,
-                <?php endforeach; ?>
-            ],
-            borderColor: 'rgb(102, 126, 234)',
-            backgroundColor: 'rgba(102, 126, 234, 0.1)',
-            tension: 0.4,
-            fill: true
-        }]
-    },
-    options: {
-        responsive: true,
-        maintainAspectRatio: false,
-        scales: {
-            y: {
-                beginAtZero: true,
-                ticks: {
-                    callback: function(value) {
-                        return '₱' + value.toLocaleString();
-                    }
-                }
-            }
-        },
-        plugins: {
-            tooltip: {
-                callbacks: {
-                    label: function(context) {
-                        return 'Revenue: ₱' + context.parsed.y.toLocaleString();
-                    }
-                }
-            }
-        }
-    }
-});
-</script>
+<?php
+// Defer chart init until after Chart.js is loaded (footer includes Chart.js)
+$chart_labels = [];
+foreach ($monthly_revenue as $revenue) {
+    $chart_labels[] = date('M Y', strtotime($revenue['month'] . '-01'));
+}
+$chart_values = array_map(function($r){ return (float)$r['total']; }, $monthly_revenue);
 
-<?php require_once 'includes/footer.php'; ?>
+$additional_scripts = '<script>' .
+"(function(){\n" .
+"  var el = document.getElementById('revenueChart'); if(!el) return;\n" .
+"  var ctx = el.getContext('2d');\n" .
+"  new Chart(ctx, {\n" .
+"    type: 'line',\n" .
+"    data: {\n" .
+"      labels: " . json_encode($chart_labels) . ",\n" .
+"      datasets: [{ label: 'Monthly Revenue', data: " . json_encode($chart_values) . ",\n" .
+"        borderColor: 'rgb(102, 126, 234)', backgroundColor: 'rgba(102, 126, 234, 0.1)', tension: 0.4, fill: true }]\n" .
+"    },\n" .
+"    options: { responsive: true, maintainAspectRatio: false, scales: { y: { beginAtZero: true, ticks: { callback: function(v){ return '₱' + Number(v).toLocaleString(); } } } },\n" .
+"      plugins: { tooltip: { callbacks: { label: function(ctx){ return 'Revenue: ₱' + Number(ctx.parsed.y||0).toLocaleString(); } } } } }\n" .
+"  });\n" .
+"})();\n" .
+"</script>";
+
+require_once 'includes/footer.php';
+?>

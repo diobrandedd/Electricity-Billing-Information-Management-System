@@ -344,8 +344,14 @@ if ($action == 'list') {
                     <div class="col-md-6">
                         <div class="mb-3">
                             <label for="contact_number" class="form-label">Contact Number</label>
-                            <input type="text" class="form-control" id="contact_number" name="contact_number" 
-                                   value="<?php echo htmlspecialchars($customer['contact_number'] ?? ''); ?>">
+                            <div class="input-group">
+                                <span class="input-group-text">+63</span>
+                                <input type="text" class="form-control" id="contact_number" name="contact_number" 
+                                       placeholder="9XXXXXXXXX" maxlength="10"
+                                       value="<?php echo htmlspecialchars($customer['contact_number'] ?? ''); ?>"
+                                       oninput="formatPhilippinePhone(this)">
+                            </div>
+                            <div class="form-text">Enter 10-digit Philippine mobile number starting with 9</div>
                         </div>
                     </div>
                     <div class="col-md-6">
@@ -392,5 +398,64 @@ if ($action == 'list') {
         </div>
     </div>
 <?php endif; ?>
+
+<script>
+function formatPhilippinePhone(input) {
+    // Remove all non-numeric characters
+    let value = input.value.replace(/\D/g, '');
+    
+    // If it starts with 63, remove it
+    if (value.startsWith('63')) {
+        value = value.substring(2);
+    }
+    
+    // If it starts with 0, remove it
+    if (value.startsWith('0')) {
+        value = value.substring(1);
+    }
+    
+    // Limit to 10 digits
+    value = value.substring(0, 10);
+    
+    // Update the input value
+    input.value = value;
+    
+    // Validate Philippine mobile number format
+    const isValid = value.length === 10 && value.startsWith('9');
+    
+    if (value.length > 0) {
+        if (isValid) {
+            input.classList.remove('is-invalid');
+            input.classList.add('is-valid');
+        } else {
+            input.classList.remove('is-valid');
+            input.classList.add('is-invalid');
+        }
+    } else {
+        input.classList.remove('is-valid', 'is-invalid');
+    }
+}
+
+// Add validation on form submit
+document.addEventListener('DOMContentLoaded', function() {
+    const form = document.querySelector('form');
+    if (form) {
+        form.addEventListener('submit', function(e) {
+            const phoneInput = document.getElementById('contact_number');
+            if (phoneInput && phoneInput.value) {
+                const value = phoneInput.value;
+                const isValid = value.length === 10 && value.startsWith('9');
+                
+                if (!isValid) {
+                    e.preventDefault();
+                    alert('Please enter a valid 10-digit Philippine mobile number starting with 9');
+                    phoneInput.focus();
+                    return false;
+                }
+            }
+        });
+    }
+});
+</script>
 
 <?php require_once 'includes/footer.php'; ?>

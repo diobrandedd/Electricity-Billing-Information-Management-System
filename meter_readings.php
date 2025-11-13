@@ -26,10 +26,10 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             if (empty($customer_id) || empty($reading_date) || $current_reading < 0) {
                 $error = 'Please fill in all required fields with valid values.';
             } else {
-                // Get previous reading
+                // Get previous reading (latest cumulative reading)
                 $prev_reading_sql = "SELECT current_reading FROM meter_readings 
                                    WHERE customer_id = ? 
-                                   ORDER BY reading_date DESC, reading_id DESC 
+                                   ORDER BY current_reading DESC, created_at DESC 
                                    LIMIT 1";
                 $prev_reading_result = fetchOne($prev_reading_sql, [$customer_id]);
                 $previous_reading = $prev_reading_result ? $prev_reading_result['current_reading'] : 0;
@@ -38,13 +38,22 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                 $consumption = max(0, $current_reading - $previous_reading);
                 
                 if ($action == 'add') {
+                    // Check if user_id exists in users table
+                    $meter_reader_id = null;
+                    if (isset($_SESSION['user_id']) && !empty($_SESSION['user_id'])) {
+                        $user_check = fetchOne("SELECT user_id FROM users WHERE user_id = ?", [$_SESSION['user_id']]);
+                        if ($user_check) {
+                            $meter_reader_id = $_SESSION['user_id'];
+                        }
+                    }
+                    
                     $sql = "INSERT INTO meter_readings (customer_id, reading_date, previous_reading, 
                             current_reading, consumption, reading_type, meter_reader_id, notes) 
                             VALUES (?, ?, ?, ?, ?, ?, ?, ?)";
                     
                     executeQuery($sql, [
                         $customer_id, $reading_date, $previous_reading, $current_reading, 
-                        $consumption, $reading_type, $_SESSION['user_id'], $notes
+                        $consumption, $reading_type, $meter_reader_id, $notes
                     ]);
                     
                     logActivity('Meter reading created', 'meter_readings', getLastInsertId());
@@ -282,11 +291,30 @@ if ($action == 'list') {
                 <div class="row">
                     <div class="col-md-6">
                         <div class="mb-3">
-                            <label for="current_reading" class="form-label">Current Reading (kWh) *</label>
+                            <label for="current_reading" class="form-label">Current Meter Reading (kWh) *</label>
                             <input type="number" class="form-control" id="current_reading" name="current_reading" 
                                    step="0.01" min="0" 
                                    value="<?php echo $reading['current_reading'] ?? ''; ?>" required>
-                            <div class="form-text">Enter the current meter reading</div>
+                            <div class="form-text">Enter the current cumulative meter reading (the number on the physical meter)</div>
+                            <div class="mt-3 p-3 bg-light rounded">
+                                <div class="row text-center">
+                                    <div class="col-6">
+                                        <small class="text-muted d-block">Previous Meter Reading</small>
+                                        <span id="previousReadingDisplay" class="fw-bold text-primary">0.00 kWh</span>
+                                        <small class="text-muted">(Cumulative)</small>
+                                    </div>
+                                    <div class="col-6">
+                                        <small class="text-muted d-block">Current Meter Reading</small>
+                                        <span id="currentReadingDisplay" class="fw-bold text-info">0.00 kWh</span>
+                                        <small class="text-muted">(Cumulative)</small>
+                                    </div>
+                                </div>
+                                <hr class="my-2">
+                                <div class="text-center">
+                                    <small class="text-muted d-block">Calculated Consumption</small>
+                                    <span id="consumptionDisplay" class="fw-bold fs-5">0.00 kWh</span>
+                                </div>
+                            </div>
                         </div>
                     </div>
                     <div class="col-md-6">
@@ -346,8 +374,13 @@ document.getElementById('customer_id').addEventListener('change', function() {
             .then(response => response.json())
             .then(data => {
                 if (data.success) {
+                    // Update both display elements
                     document.getElementById('previousReadingValue').textContent = data.previous_reading;
+                    document.getElementById('previousReadingDisplay').textContent = data.previous_reading + ' kWh';
                     document.getElementById('previousReadingInfo').style.display = 'block';
+                    
+                    // Update the calculation display
+                    updateCalculationDisplay();
                 } else {
                     document.getElementById('previousReadingInfo').style.display = 'none';
                 }
@@ -361,14 +394,37 @@ document.getElementById('customer_id').addEventListener('change', function() {
     }
 });
 
-// Calculate consumption on current reading change
-document.getElementById('current_reading').addEventListener('input', function() {
-    const currentReading = parseFloat(this.value) || 0;
-    const previousReading = parseFloat(document.getElementById('previousReadingValue').textContent) || 0;
+// Function to update calculation display
+function updateCalculationDisplay() {
+    const currentReading = parseFloat(document.getElementById('current_reading').value) || 0;
+    const previousReading = parseFloat(document.getElementById('previousReadingValue').textContent.replace(/,/g, '')) || 0;
     const consumption = Math.max(0, currentReading - previousReading);
     
-    // You can display the calculated consumption somewhere if needed
-    console.log('Calculated consumption:', consumption);
+    // Update displays
+    const previousReadingDisplay = document.getElementById('previousReadingDisplay');
+    const currentReadingDisplay = document.getElementById('currentReadingDisplay');
+    const consumptionDisplay = document.getElementById('consumptionDisplay');
+    
+    if (previousReadingDisplay) {
+        previousReadingDisplay.textContent = previousReading.toFixed(2) + ' kWh';
+    }
+    
+    if (currentReadingDisplay) {
+        currentReadingDisplay.textContent = currentReading.toFixed(2) + ' kWh';
+    }
+    
+    if (consumptionDisplay) {
+        consumptionDisplay.textContent = consumption.toFixed(2) + ' kWh';
+        consumptionDisplay.style.color = consumption > 0 ? '#198754' : '#6c757d';
+    }
+}
+
+// Calculate consumption on current reading change
+document.getElementById('current_reading').addEventListener('input', updateCalculationDisplay);
+
+// Initialize displays on page load
+document.addEventListener('DOMContentLoaded', function() {
+    updateCalculationDisplay();
 });
 </script>
 

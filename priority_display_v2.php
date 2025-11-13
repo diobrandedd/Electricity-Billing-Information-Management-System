@@ -1,6 +1,6 @@
 <?php
 /**
- * Priority Queue Display - Public Display
+ * Priority Queue Display V2 - Public Display
  * Shows priority queue status with pipe-like UI for all categories
  */
 
@@ -51,35 +51,34 @@ header('Refresh: 10');
         
         .header {
             background: rgba(30, 58, 138, 0.9);
-            padding: 20px 0;
+            color: white;
+            padding: 1rem 0;
             text-align: center;
-            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            box-shadow: 0 2px 10px rgba(0,0,0,0.2);
         }
         
         .header h1 {
+            margin: 0;
             font-size: 2.5rem;
             font-weight: bold;
-            margin: 0;
-            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.3);
         }
         
         .header p {
+            margin: 0.5rem 0 0 0;
             font-size: 1.2rem;
-            margin: 10px 0 0 0;
-            opacity: 0.9;
         }
         
-        .queue-container {
+        .content {
             flex: 1;
             display: flex;
             align-items: center;
             justify-content: center;
-            padding: 20px;
+            padding: 2rem;
         }
         
         .queue-windows {
             display: flex;
-            gap: 30px;
+            gap: 3rem;
             width: 100%;
             max-width: 1400px;
         }
@@ -88,96 +87,133 @@ header('Refresh: 10');
             flex: 1;
             background: rgba(255, 255, 255, 0.95);
             border-radius: 20px;
-            padding: 30px;
-            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
-            backdrop-filter: blur(10px);
-            border: 1px solid rgba(255, 255, 255, 0.2);
+            padding: 2rem;
+            box-shadow: 0 8px 25px rgba(0,0,0,0.2);
+            color: #333;
+            min-height: 500px;
+            display: flex;
+            flex-direction: column;
         }
         
         .window-header {
             text-align: center;
-            margin-bottom: 30px;
-            color: var(--dark-blue);
+            margin-bottom: 2rem;
+            padding-bottom: 1rem;
+            border-bottom: 3px solid var(--primary-orange);
         }
         
-        .window-title {
+        .window-header h3 {
+            color: var(--dark-blue);
             font-size: 1.8rem;
             font-weight: bold;
-            margin-bottom: 10px;
-        }
-        
-        .window-subtitle {
-            font-size: 1.1rem;
-            color: #666;
             margin: 0;
         }
         
+        .window-header p {
+            color: #666;
+            margin: 0.5rem 0 0 0;
+            font-size: 1.1rem;
+        }
+        
         .pipe-container {
+            flex: 1;
             display: flex;
             flex-direction: column;
+            justify-content: space-between;
             align-items: center;
-            margin: 30px 0;
+            position: relative;
         }
         
         .pipe-section {
             width: 100%;
-            text-align: center;
-            padding: 20px;
-            margin: 8px 0;
+            max-width: 300px;
+            padding: 1.5rem;
             border-radius: 15px;
-            border: 3px solid #ddd;
-            min-height: 80px;
-            display: flex;
-            flex-direction: column;
-            justify-content: center;
+            text-align: center;
+            margin: 0.5rem 0;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
         }
         
         .previous-numbers {
-            background: linear-gradient(135deg, #e9ecef 0%, #f8f9fa 100%);
-            color: #6c757d;
-            border-color: #dee2e6;
+            background: linear-gradient(135deg, #6c757d, #5a6268);
+            color: white;
+            min-height: 80px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
         }
         
         .current-number {
-            background: linear-gradient(135deg, #007bff 0%, #0056b3 100%);
+            background: linear-gradient(135deg, #28a745, #20c997);
             color: white;
+            min-height: 120px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
             font-size: 2.5rem;
             font-weight: bold;
-            border-color: #007bff;
-            box-shadow: 0 4px 15px rgba(0, 123, 255, 0.3);
+            border: 4px solid #fff;
+            box-shadow: 0 8px 25px rgba(0,0,0,0.3);
+            position: relative;
+        }
+        
+        .current-number::before {
+            content: '';
+            position: absolute;
+            top: -8px;
+            left: -8px;
+            right: -8px;
+            bottom: -8px;
+            background: linear-gradient(45deg, #28a745, #20c997, #28a745);
+            border-radius: 20px;
+            z-index: -1;
             animation: pulse 2s infinite;
         }
         
-        .next-numbers {
-            background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
-            color: #495057;
-            border-color: #dee2e6;
+        @keyframes pulse {
+            0% { opacity: 0.7; }
+            50% { opacity: 1; }
+            100% { opacity: 0.7; }
         }
         
-        .next-number-item {
-            background: white;
-            border: 2px solid #007bff;
-            border-radius: 10px;
-            padding: 12px;
-            margin: 6px 0;
+        .next-numbers {
+            background: linear-gradient(135deg, #007bff, #0056b3);
+            color: white;
+            min-height: 150px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        .number-display {
+            font-size: 2rem;
             font-weight: bold;
-            font-size: 1.2rem;
-            color: #007bff;
-            box-shadow: 0 2px 8px rgba(0, 123, 255, 0.2);
+            margin-bottom: 0.5rem;
+        }
+        
+        .customer-name {
+            font-size: 1.1rem;
+            font-weight: 500;
         }
         
         .section-label {
             font-size: 0.9rem;
-            font-weight: bold;
-            margin-bottom: 10px;
+            opacity: 0.8;
+            margin-bottom: 0.5rem;
             text-transform: uppercase;
             letter-spacing: 1px;
         }
         
-        .current-customer {
-            font-size: 1rem;
-            margin-top: 10px;
-            opacity: 0.9;
+        .next-number-item {
+            background: rgba(255, 255, 255, 0.2);
+            padding: 0.5rem 1rem;
+            margin: 0.25rem 0;
+            border-radius: 8px;
+            font-size: 1.1rem;
+            font-weight: 500;
         }
         
         .lunch-break-overlay {
@@ -187,102 +223,75 @@ header('Refresh: 10');
             width: 100%;
             height: 100%;
             background: rgba(0, 0, 0, 0.8);
-            z-index: 9999;
             display: flex;
             align-items: center;
             justify-content: center;
+            z-index: 9999;
         }
         
         .lunch-break-content {
-            background: white;
-            padding: 60px;
-            border-radius: 20px;
+            background: linear-gradient(135deg, #fd7e14, #e8590c);
+            color: white;
+            padding: 4rem;
+            border-radius: 25px;
             text-align: center;
-            max-width: 500px;
-            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.3);
+            box-shadow: 0 15px 40px rgba(0,0,0,0.4);
+            animation: bounce 2s infinite;
+        }
+        
+        @keyframes bounce {
+            0%, 20%, 50%, 80%, 100% { transform: translateY(0); }
+            40% { transform: translateY(-10px); }
+            60% { transform: translateY(-5px); }
         }
         
         .lunch-break-content h2 {
-            color: #dc3545;
             font-size: 3rem;
-            margin-bottom: 20px;
+            margin-bottom: 1rem;
         }
         
         .lunch-break-content p {
-            color: #666;
-            font-size: 1.3rem;
+            font-size: 1.5rem;
             margin: 0;
         }
         
-        .status-indicator {
-            position: absolute;
-            top: 20px;
-            right: 20px;
-            background: rgba(40, 167, 69, 0.9);
-            color: white;
-            padding: 10px 20px;
-            border-radius: 25px;
-            font-weight: bold;
-            box-shadow: 0 4px 15px rgba(40, 167, 69, 0.3);
-        }
-        
-        .status-indicator.offline {
-            background: rgba(220, 53, 69, 0.9);
-            box-shadow: 0 4px 15px rgba(220, 53, 69, 0.3);
-        }
-        
-        @keyframes pulse {
-            0% { transform: scale(1); }
-            50% { transform: scale(1.05); }
-            100% { transform: scale(1); }
+        .status-bar {
+            background: rgba(0, 0, 0, 0.1);
+            padding: 1rem;
+            text-align: center;
+            font-size: 1.1rem;
+            font-weight: 500;
         }
         
         @media (max-width: 1200px) {
             .queue-windows {
                 flex-direction: column;
-                gap: 20px;
+                gap: 2rem;
             }
             
             .queue-window {
-                padding: 20px;
-            }
-        }
-        
-        @media (max-width: 768px) {
-            .header h1 {
-                font-size: 2rem;
-            }
-            
-            .header p {
-                font-size: 1rem;
-            }
-            
-            .window-title {
-                font-size: 1.5rem;
-            }
-            
-            .current-number {
-                font-size: 2rem;
-            }
-            
-            .queue-window {
-                padding: 15px;
+                min-height: 400px;
             }
         }
     </style>
 </head>
 <body>
     <div class="display-container">
-        <div class="status-indicator" id="statusIndicator">
-            <i class="fas fa-circle me-2"></i>LIVE
-        </div>
-        
         <div class="header">
-            <h1><i class="fas fa-ticket-alt me-3"></i>Priority Queue Display</h1>
-            <p><?php echo getSystemSetting('company_name', 'SOCOTECO II'); ?> - Now Serving</p>
+            <h1><i class="fas fa-ticket-alt me-3"></i><?php echo getSystemSetting('company_name', 'SOCOTECO II'); ?></h1>
+            <p>Priority Queue Display - <?php echo date('F j, Y'); ?></p>
+            <div class="status-bar">
+                <i class="fas fa-clock me-2"></i>
+                Current Time: <span id="currentTime"><?php echo date('h:i A'); ?></span>
+                <?php if ($priorityGenerator->isLunchBreak()): ?>
+                    <span class="ms-3 text-warning">
+                        <i class="fas fa-utensils me-1"></i>Lunch Break (12:00 PM - 1:00 PM)
+                    </span>
+                <?php endif; ?>
+            </div>
         </div>
         
-        <div class="queue-container">
+        <div class="content">
             <div class="queue-windows">
                 <?php 
                 $categories = ['payment', 'claims', 'registration'];
@@ -294,22 +303,21 @@ header('Refresh: 10');
                     $categoryName = $categoryNames[$i];
                     $windowNumber = $windowNumbers[$i];
                     
-                    // Get queue data for this category
                     $current = $priorityGenerator->getCurrentPriorityNumber($category);
                     $next = $priorityGenerator->getNextPriorityNumbers($category, null, 3);
                     $previous = $priorityGenerator->getPreviousPriorityNumbers($category, null, 1);
                 ?>
                     <div class="queue-window">
                         <div class="window-header">
-                            <div class="window-title">Window <?php echo $windowNumber; ?></div>
-                            <div class="window-subtitle"><?php echo $categoryName; ?> Queue</div>
+                            <h3>Window <?php echo $windowNumber; ?></h3>
+                            <p><?php echo $categoryName; ?> Queue</p>
                         </div>
                         
                         <div class="pipe-container">
                             <!-- Previous Numbers (Top) -->
                             <div class="pipe-section previous-numbers">
                                 <div class="section-label">Previously Served</div>
-                                <div style="font-size: 1.5rem; font-weight: bold;">
+                                <div class="number-display">
                                     <?php if ($previous && count($previous) > 0): ?>
                                         <?php echo $previous[0]['priority_number']; ?>
                                     <?php else: ?>
@@ -320,11 +328,12 @@ header('Refresh: 10');
                             
                             <!-- Current Number (Middle) -->
                             <div class="pipe-section current-number">
-                                <div style="font-size: 2.5rem; font-weight: bold;">
-                                    <?php if ($current && $current['priority_number']): ?>
+                                <div class="section-label">Now Serving</div>
+                                <div class="number-display">
+                                    <?php if ($current): ?>
                                         <?php echo $current['priority_number']; ?>
                                     <?php else: ?>
-                                        No Active Number
+                                        --
                                     <?php endif; ?>
                                 </div>
                             </div>
@@ -332,15 +341,15 @@ header('Refresh: 10');
                             <!-- Next Numbers (Bottom) -->
                             <div class="pipe-section next-numbers">
                                 <div class="section-label">Next Numbers</div>
-                                <div>
-                                    <?php if ($next && count($next) > 0): ?>
-                                        <?php foreach ($next as $item): ?>
-                                            <div class="next-number-item"><?php echo $item['priority_number']; ?></div>
-                                        <?php endforeach; ?>
-                                    <?php else: ?>
-                                        <div class="next-number-item">No pending numbers</div>
-                                    <?php endif; ?>
-                                </div>
+                                <?php if ($next && count($next) > 0): ?>
+                                    <?php foreach ($next as $nextItem): ?>
+                                        <div class="next-number-item">
+                                            <?php echo $nextItem['priority_number']; ?>
+                                        </div>
+                                    <?php endfor; ?>
+                                <?php else: ?>
+                                    <div class="next-number-item">No pending numbers</div>
+                                <?php endif; ?>
                             </div>
                         </div>
                     </div>
@@ -358,22 +367,22 @@ header('Refresh: 10');
             </div>
         </div>
     <?php endif; ?>
-
+    
     <script>
-        // Update status indicator
-        function updateStatus() {
-            const indicator = document.getElementById('statusIndicator');
+        // Update current time every second
+        function updateCurrentTime() {
             const now = new Date();
-            const timeString = now.toLocaleTimeString();
-            
-            indicator.innerHTML = `<i class="fas fa-circle me-2"></i>LIVE - ${timeString}`;
+            const timeString = now.toLocaleTimeString('en-US', {
+                hour: 'numeric',
+                minute: '2-digit',
+                hour12: true
+            });
+            document.getElementById('currentTime').textContent = timeString;
         }
         
-        // Update status every second
-        setInterval(updateStatus, 1000);
-        
-        // Initial status update
-        updateStatus();
+        // Update time on page load and every second
+        updateCurrentTime();
+        setInterval(updateCurrentTime, 1000);
     </script>
 </body>
 </html>

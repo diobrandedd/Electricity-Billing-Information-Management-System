@@ -7,12 +7,40 @@ include 'includes/header.php';
 ?>
 
 <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
-    <h1 class="h2">Feedback Management</h1>
-    <div class="btn-toolbar mb-2 mb-md-0">
+    <div class="d-flex gap-2 align-items-center">
+        <!-- Category Tabs -->
+        <ul class="nav nav-pills me-3" id="categoryTabs" role="tablist">
+            <li class="nav-item" role="presentation">
+                <button class="nav-link active" id="all-tab" data-category="" type="button" role="tab">
+                    All <span class="badge bg-secondary ms-1" id="all-count">0</span>
+                </button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link" id="customer_support-tab" data-category="customer_support" type="button" role="tab">
+                    Customer Support <span class="badge bg-secondary ms-1" id="customer_support-count">0</span>
+                </button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link" id="service-tab" data-category="service" type="button" role="tab">
+                    Service <span class="badge bg-secondary ms-1" id="service-count">0</span>
+                </button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link" id="website-tab" data-category="website" type="button" role="tab">
+                    Website <span class="badge bg-secondary ms-1" id="website-count">0</span>
+                </button>
+            </li>
+        </ul>
+        
+        <div class="input-group">
+            <span class="input-group-text"><i class="fas fa-search"></i></span>
+            <input id="searchBox" type="text" class="form-control" placeholder="Search by message, reply or name...">
+        </div>
         <button id="refreshFeedback" class="btn btn-outline-secondary">
-            <i class="fas fa-sync-alt me-2"></i>Refresh
+            <i class="fas fa-sync-alt me-0"></i>Refresh
         </button>
     </div>
+    
 </div>
 
 <!-- Feedback List -->
@@ -94,10 +122,15 @@ include 'includes/header.php';
     const listEl = document.getElementById('feedbackList');
     const emptyEl = document.getElementById('feedbackEmpty');
     const refreshBtn = document.getElementById('refreshFeedback');
+    const searchBox = document.getElementById('searchBox');
+    const categoryTabs = document.getElementById('categoryTabs');
     const endpoint = '<?php echo url('ajax/feedback.php'); ?>';
     let lastId = 0;
     const rendered = new Set();
     const replyRendered = new Map();
+    let lastReplyId = 0;
+    let searchQuery = '';
+    let currentCategory = '';
 
     function formatTime(ts) {
         try { 
@@ -111,6 +144,11 @@ include 'includes/header.php';
         const wrap = document.createElement('div');
         wrap.className = 'feedback-item';
         wrap.dataset.feedbackId = f.feedback_id;
+        
+        // Mark feedback as read when admin views it
+        if (!f.is_read_by_admin) {
+            markFeedbackAsRead(f.feedback_id);
+        }
 
         // Header with customer name, time, and status
         const header = document.createElement('div');
@@ -122,15 +160,30 @@ include 'includes/header.php';
         const name = document.createElement('strong');
         name.textContent = f.customer_name || 'Anonymous';
         
+        // Category badge
+        const categoryBadge = document.createElement('span');
+        categoryBadge.className = 'badge bg-info';
+        const categoryText = f.category ? f.category.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase()) : 'General';
+        categoryBadge.textContent = categoryText;
+        
+        // Unread indicator
+        if (!f.is_read_by_admin) {
+            const unreadIndicator = document.createElement('span');
+            unreadIndicator.className = 'badge bg-danger ms-1';
+            unreadIndicator.textContent = 'NEW';
+            left.appendChild(unreadIndicator);
+        }
+        
         const status = document.createElement('span');
         status.className = `badge status-badge ${f.status === 'reviewed' ? 'bg-success' : 'bg-warning'}`;
         status.textContent = f.status === 'reviewed' ? 'Reviewed' : 'Pending';
         
         left.appendChild(name);
+        left.appendChild(categoryBadge);
         left.appendChild(status);
         
         const time = document.createElement('small');
-        time.className = 'text-muted';
+        time.className = 'text-secondary';
         time.textContent = formatTime(f.created_at);
         
         header.appendChild(left);
@@ -140,6 +193,38 @@ include 'includes/header.php';
         const message = document.createElement('div');
         message.className = 'text-dark mb-2';
         message.textContent = f.message || '';
+        // Action buttons (flag, mark reviewed, delete)
+        const actions = document.createElement('div');
+        actions.className = 'd-flex gap-2 mt-2';
+        actions.innerHTML = `
+            <button class="btn btn-sm btn-outline-warning" data-action="flag" title="Flag for review"><i class="fas fa-flag"></i></button>
+            <button class="btn btn-sm btn-outline-success" data-action="reviewed" title="Mark as reviewed"><i class="fas fa-check"></i></button>
+            <button class="btn btn-sm btn-outline-danger" data-action="delete" title="Delete"><i class="fas fa-trash"></i></button>
+        `;
+
+        actions.addEventListener('click', function(e){
+            const btn = e.target.closest('button');
+            if (!btn) return;
+            const act = btn.getAttribute('data-action');
+            if (act === 'delete' && !confirm('Delete this feedback and its replies?')) return;
+            const body = new URLSearchParams({ action: act, feedback_id: f.feedback_id });
+            fetch(endpoint, { method:'POST', headers:{'Content-Type':'application/x-www-form-urlencoded'}, body })
+                .then(r=>r.json())
+                .then(data=>{
+                    if (!data || !data.ok) throw new Error(data && data.error || 'Operation failed');
+                    if (act === 'delete') {
+                        wrap.remove();
+                        updateEmptyState();
+                    } else if (act === 'reviewed') {
+                        status.className = 'badge status-badge bg-success';
+                        status.textContent = 'Reviewed';
+                    } else if (act === 'flag') {
+                        btn.classList.remove('btn-outline-warning');
+                        btn.classList.add('btn-warning');
+                    }
+                })
+                .catch(err=> alert(err.message));
+        });
 
         // Expand/collapse for long messages
         if (f.message && f.message.length > 150) {
@@ -217,6 +302,7 @@ include 'includes/header.php';
         wrap.appendChild(header);
         wrap.appendChild(message);
         wrap.appendChild(replies);
+        wrap.appendChild(actions);
         wrap.appendChild(replyForm);
 
         return wrap;
@@ -261,6 +347,7 @@ include 'includes/header.php';
             }
             if (set.has(rid)) return;
             set.add(rid);
+            lastReplyId = Math.max(lastReplyId, rid);
             
             const container = listEl.querySelector(`[data-feedback-id="${fid}"] .replies-container`);
             if (container) {
@@ -300,14 +387,20 @@ include 'includes/header.php';
     }
 
     function fetchList(since = 0) {
-        const url = endpoint + `?action=list&since_id=${since}`;
+        let url = endpoint + `?action=list&since_id=${since}&since_reply_id=${lastReplyId}&q=${encodeURIComponent(searchQuery)}`;
+        if (currentCategory) url += `&category=${encodeURIComponent(currentCategory)}`;
+        
         return fetch(url)
             .then(r => r.json())
             .then(data => {
                 renderList(data.feedback || []);
                 renderRepliesMap(data.replies || {});
+                renderReplies(data.replies_new || []);
             })
-            .catch(() => {});
+            .catch(err => {
+                console.error('Error fetching feedback:', err);
+                alert('Error loading feedback: ' + err.message);
+            });
     }
 
     function renderRepliesMap(map) {
@@ -318,6 +411,81 @@ include 'includes/header.php';
         });
     }
 
+    function updateCategoryCounts() {
+        fetch(endpoint + '?action=category_counts')
+            .then(r => r.json())
+            .then(data => {
+                if (data && data.counts) {
+                    const counts = data.counts;
+                    document.getElementById('customer_support-count').textContent = counts.customer_support || 0;
+                    document.getElementById('service-count').textContent = counts.service || 0;
+                    document.getElementById('website-count').textContent = counts.website || 0;
+                    document.getElementById('all-count').textContent = (counts.customer_support || 0) + (counts.service || 0) + (counts.website || 0);
+                }
+            })
+            .catch(err => {
+                console.error('Error updating category counts:', err);
+            });
+    }
+
+    function switchCategory(category) {
+        currentCategory = category;
+        listEl.innerHTML = '';
+        rendered.clear();
+        replyRendered.clear();
+        lastId = 0;
+        lastReplyId = 0;
+        fetchList(0);
+    }
+
+    function markFeedbackAsRead(feedbackId) {
+        fetch(endpoint, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/x-www-form-urlencoded',
+            },
+            body: `action=mark_read&feedback_id=${feedbackId}`
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data && data.ok) {
+                // Update notification badge in sidebar
+                const badge = document.getElementById('feedback-notification-badge');
+                if (badge) {
+                    const currentCount = parseInt(badge.textContent) || 0;
+                    const newCount = Math.max(0, currentCount - 1);
+                    if (newCount > 0) {
+                        badge.textContent = newCount;
+                        badge.style.display = 'inline-block';
+                    } else {
+                        badge.style.display = 'none';
+                    }
+                }
+            }
+        })
+        .catch(error => {
+            console.error('Error marking feedback as read:', error);
+        });
+    }
+
+    // Category tab event listeners
+    if (categoryTabs) {
+        categoryTabs.addEventListener('click', function(e) {
+            const tab = e.target.closest('button[data-category]');
+            if (!tab) return;
+            
+            // Remove active class from all tabs
+            categoryTabs.querySelectorAll('.nav-link').forEach(t => t.classList.remove('active'));
+            
+            // Add active class to clicked tab
+            tab.classList.add('active');
+            
+            // Get category and switch
+            const category = tab.getAttribute('data-category');
+            switchCategory(category);
+        });
+    }
+
     // Event listeners
     if (refreshBtn) {
         refreshBtn.addEventListener('click', function() {
@@ -325,15 +493,35 @@ include 'includes/header.php';
             rendered.clear();
             replyRendered.clear();
             lastId = 0;
+            lastReplyId = 0;
+            updateCategoryCounts();
             fetchList(0);
         });
     }
 
+    if (searchBox) {
+        let t;
+        searchBox.addEventListener('input', function(){
+            clearTimeout(t);
+            t = setTimeout(function(){
+                searchQuery = searchBox.value.trim();
+                listEl.innerHTML = '';
+                rendered.clear();
+                replyRendered.clear();
+                lastId = 0;
+                lastReplyId = 0;
+                fetchList(0);
+            }, 250);
+        });
+    }
+
     // Initial load and polling
+    updateCategoryCounts();
     fetchList(0);
     setInterval(function() {
+        updateCategoryCounts();
         fetchList(lastId || 0);
-    }, 5000);
+    }, 2000);
 })();
 </script>
 

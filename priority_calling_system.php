@@ -5,21 +5,9 @@
  */
 
 require_once 'config/config.php';
-require_once 'includes/PriorityNumberGenerator.php';
-
-// Check if user is logged in and has admin/cashier role
-requireRole(['admin', 'cashier']);
-
-$priorityGenerator = new PriorityNumberGenerator();
-
-// Get current queue status
-$currentStatus = $priorityGenerator->getCurrentPriorityNumber();
-$currentCustomer = $priorityGenerator->getCurrentPriorityWithCustomer();
-$nextCustomer = $priorityGenerator->getNextPriorityWithCustomer();
-$upcomingNumbers = $priorityGenerator->getUpcomingPriorityNumbers(10);
-
-$pageTitle = "Priority Calling System";
-include 'includes/header.php';
+// Legacy page: redirect to unified Priority Management
+header('Location: priority_queue_management.php');
+exit;
 ?>
 
 <div class="container-fluid">

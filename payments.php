@@ -53,11 +53,9 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                         $sql = "INSERT INTO payments (bill_id, payment_date, amount_paid, payment_method, or_number, cashier_id, notes) 
                                 VALUES (?, ?, ?, ?, ?, ?, ?)";
                         
-                        $stmt = executeQuery($sql, [
+                        $payment_id = executeQueryWithId($sql, [
                             $bill_id, $payment_date, $amount_paid, $payment_method, $or_number, $_SESSION['user_id'], $notes
                         ]);
-                        
-                        $payment_id = $stmt->getConnection()->lastInsertId();
                         
                         // Record payment history
                         $history_sql = "INSERT INTO payment_history (bill_id, payment_id, amount, payment_date) 
@@ -135,10 +133,18 @@ if ($action == 'add') {
     $bill_filter = $_GET['bill_id'] ?? '';
     $customer_filter = $_GET['customer_id'] ?? '';
     
-    $sql = "SELECT b.*, c.account_number, c.first_name, c.last_name, c.meter_number
+    // Do not preload bills; use AJAX search instead unless a filter provided
+    if (!$bill_filter && !$customer_filter) {
+        $unpaid_bills = [];
+    } else {
+        $sql = "SELECT 
+                    b.*, 
+                    c.account_number, c.first_name, c.last_name, c.meter_number,
+                    (b.total_amount - COALESCE((SELECT SUM(p.amount_paid) FROM payments p WHERE p.bill_id = b.bill_id), 0)) AS remaining_balance
             FROM bills b
             JOIN customers c ON b.customer_id = c.customer_id
-            WHERE b.status IN ('pending', 'overdue')";
+                WHERE (b.status IN ('pending', 'overdue') OR 
+                       (b.total_amount - COALESCE((SELECT SUM(p.amount_paid) FROM payments p WHERE p.bill_id = b.bill_id), 0)) > 0)";
     $params = [];
     
     if ($bill_filter) {
@@ -151,9 +157,10 @@ if ($action == 'add') {
         $params[] = $customer_filter;
     }
     
-    $sql .= " ORDER BY b.due_date ASC";
+        $sql .= " ORDER BY b.due_date ASC LIMIT 100";
     
     $unpaid_bills = fetchAll($sql, $params);
+    }
 }
 ?>
 
@@ -204,11 +211,12 @@ if ($action == 'add') {
                            placeholder="To Date" value="<?php echo $date_to ?? ''; ?>">
                 </div>
                 <div class="col-md-2">
-                    <select class="form-select" onchange="filterPayments()">
+                    <select class="form-select" onchange="filterPayments()" id="listCustomerFilter">
                         <option value="">All Customers</option>
                         <?php foreach ($customers as $customer): ?>
                             <option value="<?php echo $customer['customer_id']; ?>" 
-                                    <?php echo $customer_filter == $customer['customer_id'] ? 'selected' : ''; ?>>
+                                    <?php echo $customer_filter == $customer['customer_id'] ? 'selected' : ''; ?>
+                            >
                                 <?php echo $customer['account_number'] . ' - ' . $customer['last_name'] . ', ' . $customer['first_name']; ?>
                             </option>
                         <?php endforeach; ?>
@@ -282,25 +290,29 @@ if ($action == 'add') {
                 <div class="col-md-6">
                     <label class="form-label">Search Bill</label>
                     <select class="form-select" id="billSelect" onchange="loadBillDetails()">
-                        <option value="">Select a bill to pay</option>
-                        <?php foreach ($unpaid_bills as $bill): ?>
+                        <option value=""><?php echo empty($customer_filter) && empty($bill_filter) ? 'Search bill by number or account...' : 'Select a bill to pay'; ?></option>
+                        <?php foreach (($unpaid_bills ?? []) as $bill): ?>
                             <option value="<?php echo $bill['bill_id']; ?>" 
                                     data-customer="<?php echo $bill['customer_id']; ?>"
-                                    data-amount="<?php echo $bill['total_amount']; ?>"
+                                    data-amount="<?php echo max(0, $bill['remaining_balance']); ?>"
                                     data-bill-number="<?php echo $bill['bill_number']; ?>">
                                 <?php echo $bill['bill_number'] . ' - ' . $bill['account_number'] . ' - ' . $bill['last_name'] . ', ' . $bill['first_name']; ?>
-                                (<?php echo formatCurrency($bill['total_amount']); ?>)
+                                (Remaining: <?php echo formatCurrency(max(0, $bill['remaining_balance'])); ?>)
                             </option>
                         <?php endforeach; ?>
                     </select>
+                    <?php if (empty($customer_filter) && empty($bill_filter)): ?>
+                        <div class="form-text">Use the search box to find a bill quickly, or select a customer at right.</div>
+                    <?php endif; ?>
                 </div>
                 <div class="col-md-6">
                     <label class="form-label">Filter by Customer</label>
-                    <select class="form-select" onchange="filterBills()">
+                    <select class="form-select" id="customerFilter" onchange="filterBills()">
                         <option value="">All Customers</option>
                         <?php foreach ($customers as $customer): ?>
                             <option value="<?php echo $customer['customer_id']; ?>" 
-                                    <?php echo $customer_filter == $customer['customer_id'] ? 'selected' : ''; ?>>
+                                    <?php echo ($customer_filter ?? '') == $customer['customer_id'] ? 'selected' : ''; ?>
+                            >
                                 <?php echo $customer['account_number'] . ' - ' . $customer['last_name'] . ', ' . $customer['first_name']; ?>
                             </option>
                         <?php endforeach; ?>
@@ -308,10 +320,24 @@ if ($action == 'add') {
                 </div>
             </div>
             
-            <!-- Bill Details Display -->
+            <!-- Bill Details + Receipt Preview -->
+            <div class="row">
+                <div class="col-md-7">
             <div id="billDetails" class="alert alert-info" style="display: none;">
                 <h6>Bill Details</h6>
                 <div id="billInfo"></div>
+                    </div>
+                </div>
+                <div class="col-md-5">
+                    <div class="card" id="receiptPreview" style="display:none;">
+                        <div class="card-header">
+                            <h6 class="mb-0"><i class="fas fa-receipt me-2"></i>Receipt Preview</h6>
+                        </div>
+                        <div class="card-body" id="receiptBody">
+                            <div class="text-muted">Select a bill and enter details to preview.</div>
+                        </div>
+                    </div>
+                </div>
             </div>
             
             <!-- Payment Form -->
@@ -319,7 +345,7 @@ if ($action == 'add') {
                 <input type="hidden" name="csrf_token" value="<?php echo generateCSRFToken(); ?>">
                 <input type="hidden" name="bill_id" id="bill_id">
                 
-                <div class="row">
+                <div class="row mt-3">
                     <div class="col-md-6">
                         <div class="mb-3">
                             <label for="payment_date" class="form-label">Payment Date *</label>
@@ -344,8 +370,11 @@ if ($action == 'add') {
                     <div class="col-md-6">
                         <div class="mb-3">
                             <label for="amount_paid" class="form-label">Amount Paid *</label>
+                            <div class="input-group">
                             <input type="number" class="form-control" id="amount_paid" name="amount_paid" 
                                    step="0.01" min="0.01" required>
+                                <button type="button" class="btn btn-outline-primary" id="fillRemainingBtn" title="Fill remaining balance">Fill remaining (Alt+R)</button>
+                            </div>
                             <div class="form-text">Maximum: <span id="maxAmount">₱0.00</span></div>
                         </div>
                     </div>
@@ -359,20 +388,49 @@ if ($action == 'add') {
                 
                 <div class="d-flex justify-content-end">
                     <a href="payments.php" class="btn btn-secondary me-2">Cancel</a>
-                    <button type="submit" class="btn btn-success">
-                        <i class="fas fa-credit-card me-2"></i>Process Payment
+                    <button type="button" class="btn btn-success" id="submitPaymentBtn">
+                        <i class="fas fa-credit-card me-2"></i>Process Payment (Enter)
                     </button>
                 </div>
             </form>
         </div>
     </div>
+
+    <!-- Confirm Modal -->
+    <div class="modal fade" id="confirmPaymentModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title"><i class="fas fa-check-circle me-2"></i>Confirm Payment</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <p>Please confirm the following details:</p>
+                    <ul class="list-unstyled mb-0">
+                        <li><strong>Bill #:</strong> <span id="confBillNo">-</span></li>
+                        <li><strong>Amount:</strong> <span id="confAmount">-</span></li>
+                        <li><strong>Method:</strong> <span id="confMethod">-</span></li>
+                        <li><strong>Date:</strong> <span id="confDate">-</span></li>
+                    </ul>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="button" class="btn btn-success" id="confirmSubmitBtn">Confirm & Submit</button>
+                </div>
+            </div>
+        </div>
+    </div>
 <?php endif; ?>
+
+<!-- Select2 (searchable selects) -->
+<link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
+<script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
 
 <script>
 function filterPayments() {
     const dateFrom = document.querySelector('input[name="date_from"]').value;
     const dateTo = document.querySelector('input[name="date_to"]').value;
-    const customer = document.querySelector('select[onchange="filterPayments()"]').value;
+    const customer = document.getElementById('listCustomerFilter').value;
     const search = document.querySelector('input[name="search"]').value;
     
     let url = 'payments.php?action=list';
@@ -385,7 +443,7 @@ function filterPayments() {
 }
 
 function filterBills() {
-    const customer = document.querySelector('select[onchange="filterBills()"]').value;
+    const customer = document.getElementById('customerFilter').value;
     let url = 'payments.php?action=add';
     if (customer) url += '&customer_id=' + customer;
     window.location.href = url;
@@ -395,12 +453,10 @@ function loadBillDetails() {
     const billSelect = document.getElementById('billSelect');
     const selectedOption = billSelect.options[billSelect.selectedIndex];
     
-    if (selectedOption.value) {
+    if (selectedOption && selectedOption.value) {
         const billId = selectedOption.value;
         const billNumber = selectedOption.dataset.billNumber;
-        const amount = selectedOption.dataset.amount;
         
-        // Load bill details via AJAX
         fetch('ajax/get_bill_details.php?bill_id=' + billId)
             .then(response => response.json())
             .then(data => {
@@ -416,8 +472,12 @@ function loadBillDetails() {
                     document.getElementById('billDetails').style.display = 'block';
                     document.getElementById('paymentForm').style.display = 'block';
                     document.getElementById('bill_id').value = billId;
-                    document.getElementById('amount_paid').max = data.remaining_balance;
-                    document.getElementById('maxAmount').textContent = '₱' + parseFloat(data.remaining_balance).toLocaleString();
+                    const remaining = parseFloat(data.remaining_balance);
+                    const amt = document.getElementById('amount_paid');
+                    amt.max = remaining;
+                    document.getElementById('maxAmount').textContent = '₱' + remaining.toLocaleString();
+
+                    updateReceiptPreview();
                 }
             })
             .catch(error => {
@@ -426,8 +486,151 @@ function loadBillDetails() {
     } else {
         document.getElementById('billDetails').style.display = 'none';
         document.getElementById('paymentForm').style.display = 'none';
+        document.getElementById('receiptPreview').style.display = 'none';
     }
 }
+
+function updateReceiptPreview() {
+    const billSelect = document.getElementById('billSelect');
+    const opt = billSelect.options[billSelect.selectedIndex];
+    if (!opt || !opt.value) return;
+    const billNo = opt.dataset.billNumber || '-';
+    const amount = document.getElementById('amount_paid').value || '0.00';
+    const method = document.getElementById('payment_method').value;
+    const date = document.getElementById('payment_date').value;
+    const notes = document.getElementById('notes').value || '';
+
+    const body = `
+        <div class="d-flex justify-content-between">
+            <div><strong>Bill #:</strong> ${billNo}</div>
+            <div><strong>Date:</strong> ${date}</div>
+        </div>
+        <hr>
+        <div class="d-flex justify-content-between">
+            <div><strong>Amount:</strong></div>
+            <div><strong>₱${parseFloat(amount).toLocaleString()}</strong></div>
+        </div>
+        <div class="d-flex justify-content-between">
+            <div><strong>Method:</strong></div>
+            <div>${method.replace('_',' ')}</div>
+        </div>
+        ${notes ? `<div class="mt-2"><em>${notes}</em></div>` : ''}
+    `;
+    document.getElementById('receiptBody').innerHTML = body;
+    document.getElementById('receiptPreview').style.display = '';
+}
+
+// UI Enhancements with Select2 and shortcuts
+document.addEventListener('DOMContentLoaded', function() {
+    if (window.jQuery && jQuery().select2) {
+        const $ = window.jQuery;
+        // Bill select with AJAX search
+        $('#billSelect').select2({
+            width: '100%',
+            placeholder: $('#billSelect option:first').text(),
+            allowClear: true,
+            minimumInputLength: 2,
+            ajax: {
+                url: '<?php echo url('ajax/get_bills_search.php'); ?>',
+                dataType: 'json',
+                delay: 250,
+                data: function (params) {
+                    return {
+                        q: params.term || '',
+                        page: params.page || 1,
+                        customer_id: document.getElementById('customerFilter') ? (document.getElementById('customerFilter').value || '') : ''
+                    };
+                },
+                processResults: function (data, params) {
+                    params.page = params.page || 1;
+                    return {
+                        results: data.results || [],
+                        pagination: { more: data.pagination && data.pagination.more }
+                    };
+                }
+            }
+        }).on('select2:select', function (e) {
+            const data = e.params.data;
+            // Inject a temporary option dataset for bill number and remaining
+            const sel = document.getElementById('billSelect');
+            const opt = sel.options[sel.selectedIndex];
+            opt.dataset.billNumber = data.bill_number || '';
+            opt.dataset.amount = data.remaining || '';
+            loadBillDetails();
+        });
+
+        $('#customerFilter').select2({ width: '100%', placeholder: 'Filter by customer', allowClear: true });
+        $('#listCustomerFilter').select2({ width: '100%', placeholder: 'All Customers', allowClear: true });
+    }
+
+    // Fill remaining button
+    const fillBtn = document.getElementById('fillRemainingBtn');
+    if (fillBtn) {
+        fillBtn.addEventListener('click', function() {
+            const amt = document.getElementById('amount_paid');
+            const max = parseFloat(amt.max || '0');
+            if (max > 0) {
+                amt.value = max.toFixed(2);
+                updateReceiptPreview();
+            }
+        });
+    }
+
+    // Keyboard shortcuts: Alt+R (fill remaining), Enter (open confirm)
+    document.addEventListener('keydown', function(e) {
+        // If on add page only
+        if ('<?php echo $action; ?>' !== 'add') return;
+        if (e.altKey && (e.key === 'r' || e.key === 'R')) {
+            e.preventDefault();
+            const btn = document.getElementById('fillRemainingBtn');
+            if (btn) btn.click();
+        }
+        if (e.key === 'Enter') {
+            const active = document.activeElement || {};
+            const tag = (active.tagName || '').toLowerCase();
+            if (tag !== 'textarea') {
+                const btn = document.getElementById('submitPaymentBtn');
+                if (btn) {
+                    e.preventDefault();
+                    btn.click();
+                }
+            }
+        }
+    });
+
+    // Update receipt preview on input changes
+    ['amount_paid','payment_method','payment_date','notes'].forEach(function(id) {
+        const el = document.getElementById(id);
+        if (el) el.addEventListener('input', updateReceiptPreview);
+        if (el) el.addEventListener('change', updateReceiptPreview);
+    });
+
+    const submitBtn = document.getElementById('submitPaymentBtn');
+    if (submitBtn) {
+        submitBtn.addEventListener('click', function() {
+            // Populate confirm modal
+            const billSelect = document.getElementById('billSelect');
+            const opt = billSelect.options[billSelect.selectedIndex];
+            const billNo = opt ? (opt.dataset.billNumber || opt.text) : '-';
+            const amount = document.getElementById('amount_paid').value || '0.00';
+            const method = document.getElementById('payment_method').value;
+            const date = document.getElementById('payment_date').value;
+            document.getElementById('confBillNo').textContent = billNo;
+            document.getElementById('confAmount').textContent = '₱' + parseFloat(amount).toLocaleString();
+            document.getElementById('confMethod').textContent = method.replace('_',' ');
+            document.getElementById('confDate').textContent = date;
+
+            const modal = new bootstrap.Modal(document.getElementById('confirmPaymentModal'));
+            modal.show();
+
+            const confirmBtn = document.getElementById('confirmSubmitBtn');
+            confirmBtn.onclick = function() {
+                modal.hide();
+                document.getElementById('paymentForm').submit();
+            };
+        });
+    }
+});
 </script>
 
 <?php require_once 'includes/footer.php'; ?>

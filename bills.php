@@ -1,12 +1,17 @@
 <?php
 $page_title = 'Billing Management';
 require_once 'includes/header.php';
+require_once 'sms/functions/bill_notifications.php';
 requireRole(['admin', 'cashier']);
 
 $action = $_GET['action'] ?? 'list';
 $bill_id = $_GET['id'] ?? null;
+$sms_action = $_GET['sms_action'] ?? '';
 $message = '';
 $error = '';
+
+// Initialize SMS notifications
+$smsNotifications = new BillSMSNotifications();
 
 // Handle form submissions
 if ($_SERVER['REQUEST_METHOD'] == 'POST') {
@@ -85,6 +90,62 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                 }
             }
         }
+    }
+}
+
+// Handle SMS actions
+if ($sms_action) {
+    switch ($sms_action) {
+        case 'send_due_reminder':
+            if ($bill_id) {
+                $result = $smsNotifications->sendBillSMS($bill_id, 'due_date');
+                if ($result['success']) {
+                    $message = 'Due date reminder sent successfully to ' . $result['customer'];
+                } else {
+                    $error = 'Failed to send SMS: ' . ($result['error'] ?? 'Unknown error');
+                }
+            }
+            break;
+            
+        case 'send_overdue_reminder':
+            if ($bill_id) {
+                $result = $smsNotifications->sendBillSMS($bill_id, 'overdue');
+                if ($result['success']) {
+                    $message = 'Overdue reminder sent successfully to ' . $result['customer'];
+                } else {
+                    $error = 'Failed to send SMS: ' . ($result['error'] ?? 'Unknown error');
+                }
+            }
+            break;
+            
+        case 'send_disconnection_notice':
+            if ($bill_id) {
+                $result = $smsNotifications->sendBillSMS($bill_id, 'disconnection');
+                if ($result['success']) {
+                    $message = 'Disconnection notice sent successfully to ' . $result['customer'];
+                } else {
+                    $error = 'Failed to send SMS: ' . ($result['error'] ?? 'Unknown error');
+                }
+            }
+            break;
+            
+        case 'send_bulk_due_reminders':
+            $results = $smsNotifications->sendDueDateReminders();
+            $successCount = count(array_filter($results, function($r) { return $r['result']['success']; }));
+            $message = "Bulk due date reminders sent: {$successCount} successful out of " . count($results) . " total";
+            break;
+            
+        case 'send_bulk_overdue_reminders':
+            $results = $smsNotifications->sendOverdueReminders();
+            $successCount = count(array_filter($results, function($r) { return $r['result']['success']; }));
+            $message = "Bulk overdue reminders sent: {$successCount} successful out of " . count($results) . " total";
+            break;
+            
+        case 'send_bulk_disconnection_notices':
+            $results = $smsNotifications->sendDisconnectionNotices();
+            $successCount = count(array_filter($results, function($r) { return $r['result']['success']; }));
+            $message = "Bulk disconnection notices sent: {$successCount} successful out of " . count($results) . " total";
+            break;
     }
 }
 
@@ -168,6 +229,28 @@ if ($action == 'generate') {
                 <a href="?action=generate" class="btn btn-success me-2">
                     <i class="fas fa-plus me-2"></i>Generate Bill
                 </a>
+                <div class="btn-group me-2">
+                    <button type="button" class="btn btn-outline-success dropdown-toggle" data-bs-toggle="dropdown">
+                        <i class="fas fa-sms me-2"></i>Send SMS
+                    </button>
+                    <ul class="dropdown-menu">
+                        <li>
+                            <a class="dropdown-item" href="?action=list&sms_action=send_bulk_due_reminders">
+                                <i class="fas fa-calendar-check me-2"></i>Due Date Reminders
+                            </a>
+                        </li>
+                        <li>
+                            <a class="dropdown-item" href="?action=list&sms_action=send_bulk_overdue_reminders">
+                                <i class="fas fa-exclamation-triangle me-2"></i>Overdue Reminders
+                            </a>
+                        </li>
+                        <li>
+                            <a class="dropdown-item" href="?action=list&sms_action=send_bulk_disconnection_notices">
+                                <i class="fas fa-power-off me-2"></i>Disconnection Notices
+                            </a>
+                        </li>
+                    </ul>
+                </div>
                 <button class="btn btn-outline-primary" onclick="printBills()">
                     <i class="fas fa-print me-2"></i>Print Bills
                 </button>
@@ -270,13 +353,38 @@ if ($action == 'generate') {
                             <td>
                                 <div class="btn-group" role="group">
                                     <a href="bill_details.php?id=<?php echo $bill['bill_id']; ?>" 
-                                       class="btn btn-sm btn-outline-info">
+                                       class="btn btn-sm btn-outline-info" title="View Details">
                                         <i class="fas fa-eye"></i>
                                     </a>
                                     <a href="bill_print.php?id=<?php echo $bill['bill_id']; ?>" 
-                                       class="btn btn-sm btn-outline-primary" target="_blank">
+                                       class="btn btn-sm btn-outline-primary" target="_blank" title="Print Bill">
                                         <i class="fas fa-print"></i>
                                     </a>
+                                    <?php if ($bill['status'] == 'pending'): ?>
+                                        <div class="btn-group" role="group">
+                                            <button type="button" class="btn btn-sm btn-outline-success dropdown-toggle" 
+                                                    data-bs-toggle="dropdown" title="Send SMS">
+                                                <i class="fas fa-sms"></i>
+                                            </button>
+                                            <ul class="dropdown-menu">
+                                                <li>
+                                                    <a class="dropdown-item" href="?action=list&sms_action=send_due_reminder&id=<?php echo $bill['bill_id']; ?>">
+                                                        <i class="fas fa-calendar-check me-2"></i>Due Date Reminder
+                                                    </a>
+                                                </li>
+                                                <li>
+                                                    <a class="dropdown-item" href="?action=list&sms_action=send_overdue_reminder&id=<?php echo $bill['bill_id']; ?>">
+                                                        <i class="fas fa-exclamation-triangle me-2"></i>Overdue Reminder
+                                                    </a>
+                                                </li>
+                                                <li>
+                                                    <a class="dropdown-item" href="?action=list&sms_action=send_disconnection_notice&id=<?php echo $bill['bill_id']; ?>">
+                                                        <i class="fas fa-power-off me-2"></i>Disconnection Notice
+                                                    </a>
+                                                </li>
+                                            </ul>
+                                        </div>
+                                    <?php endif; ?>
                                 </div>
                             </td>
                         </tr>
