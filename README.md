@@ -1,4 +1,4 @@
-# SOCOTECO II Billing Management System
+# SOCOTECO II Billing Information Management System
 
 > **Important Notice**: This system is **NOT** intended to replace SOCOTECO II's current billing system. Instead, it serves as a reference implementation showcasing unique features and modern approaches that SOCOTECO II could potentially integrate into their existing system. This is a demonstration project highlighting innovative features such as AI-powered content moderation, priority queue management, real-time chat support, and automated SMS notifications.
 
@@ -659,3 +659,4 @@ This project showcases modern web development approaches and unique features tha
 
 **Developed for SOCOTECO II Electric Cooperative**  
 *Empowering Philippine electric cooperatives with modern billing solutions*
+
