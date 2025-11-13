@@ -9,16 +9,33 @@ if (session_status() == PHP_SESSION_NONE) {
 }
 
 // Define constants
-define('SITE_URL', 'http://localhost/socotecoSys');
+define('SITE_URL', 'http://localhost/socobillSys');
 define('SITE_NAME', 'SOCOTECO II Billing Management System');
 define('SITE_VERSION', '1.0.0');
+
+// Database Configuration Constants (for security)
+define('DB_HOST', 'localhost');
+define('DB_NAME', 'socoteco_billing');
+define('DB_USER', 'root');
+define('DB_PASS', 'bisayawa!'); // CHANGE THIS TO A STRONG PASSWORD
+define('DB_CHARSET', 'utf8mb4');
+
+// Environment setting (set to 'production' in production)
+define('ENVIRONMENT', 'development'); // Options: 'development' or 'production'
 
 // Timezone setting for Philippines
 date_default_timezone_set('Asia/Manila');
 
 // Error reporting (disable in production)
-error_reporting(E_ALL);
-ini_set('display_errors', 1);
+if (defined('ENVIRONMENT') && ENVIRONMENT === 'production') {
+    error_reporting(0);
+    ini_set('display_errors', 0);
+    ini_set('log_errors', 1);
+    ini_set('error_log', __DIR__ . '/../logs/php_errors.log');
+} else {
+    error_reporting(E_ALL);
+    ini_set('display_errors', 1);
+}
 
 // Include database configuration
 require_once __DIR__ . '/database.php';
@@ -87,6 +104,16 @@ function generateORNumber() {
 
 function logActivity($action, $table_name = null, $record_id = null, $old_values = null, $new_values = null) {
     if (!isLoggedIn()) return;
+    
+    // Check if user_id exists in users table before logging
+    if (isset($_SESSION['user_id']) && !empty($_SESSION['user_id'])) {
+        $user_check = fetchOne("SELECT user_id FROM users WHERE user_id = ?", [$_SESSION['user_id']]);
+        if (!$user_check) {
+            return; // Don't log if user doesn't exist
+        }
+    } else {
+        return; // Don't log if no user_id in session
+    }
     
     $sql = "INSERT INTO audit_trail (user_id, action, table_name, record_id, old_values, new_values, ip_address, user_agent) 
             VALUES (?, ?, ?, ?, ?, ?, ?, ?)";

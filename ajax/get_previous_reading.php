@@ -14,7 +14,7 @@ if (!$customer_id) {
 try {
     $sql = "SELECT current_reading FROM meter_readings 
             WHERE customer_id = ? 
-            ORDER BY reading_date DESC, reading_id DESC 
+            ORDER BY current_reading DESC, created_at DESC 
             LIMIT 1";
     
     $result = fetchOne($sql, [$customer_id]);
@@ -31,6 +31,6 @@ try {
         ]);
     }
 } catch (Exception $e) {
-    echo json_encode(['success' => false, 'message' => 'Database error']);
+    echo json_encode(['success' => false, 'message' => 'Database error: ' . $e->getMessage()]);
 }
 ?>
