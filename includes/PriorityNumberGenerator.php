@@ -65,12 +65,18 @@ class PriorityNumberGenerator {
             
             $this->db->commit();
             
+            $message = null;
+            // Inform user if scheduled for tomorrow due to closing time
+            if (date('Y-m-d') !== $serviceDate) {
+                $message = 'Branch is currently closed. Your priority number is scheduled for tomorrow.';
+            }
             return [
                 'success' => true,
                 'priority_number' => $priorityNumber,
                 'service_date' => $serviceDate,
                 'priority_id' => $priorityId,
-                'estimated_wait_time' => $this->calculateEstimatedWaitTime($priorityNumber, $serviceDate)
+                'estimated_wait_time' => $this->calculateEstimatedWaitTime($priorityNumber, $serviceDate),
+                'message' => $message
             ];
             
         } catch (Exception $e) {
@@ -111,8 +117,15 @@ class PriorityNumberGenerator {
         }
         
         // Calculate which day this priority number falls on
-        $dayNumber = ceil($priorityNumber / $this->dailyCapacity);
-        $serviceDate = date('Y-m-d', strtotime("+{$dayNumber} days"));
+        // Map priority numbers 1..dailyCapacity to today, next batch to tomorrow, etc.
+        $dayOffset = (int)floor(($priorityNumber - 1) / $this->dailyCapacity);
+        $serviceDate = date('Y-m-d', strtotime("+{$dayOffset} days"));
+
+        // If current local time is 5:00 PM or later, move to next day
+        $currentHour = (int)date('G'); // 0-23
+        if ($currentHour >= 17) {
+            $serviceDate = date('Y-m-d', strtotime($serviceDate . ' +1 day'));
+        }
         
         // Ensure we don't exceed advance days limit
         $maxDate = date('Y-m-d', strtotime("+{$this->advanceDays} days"));
@@ -217,12 +230,22 @@ class PriorityNumberGenerator {
      * Get current priority number being served
      */
     public function getCurrentPriorityNumber() {
+        // Ensure a row exists for today; if not, insert a default one
         $sql = "SELECT current_priority_number, last_served_number, served_count, daily_capacity 
                 FROM priority_queue_status 
                 WHERE queue_date = CURDATE() AND is_active = 1";
         $stmt = $this->db->prepare($sql);
         $stmt->execute();
-        return $stmt->fetch();
+        $row = $stmt->fetch();
+        if (!$row) {
+            $insert = $this->db->prepare("INSERT INTO priority_queue_status (current_priority_number, last_served_number, queue_date, daily_capacity, served_count) VALUES (0, 0, CURDATE(), ?, 0)");
+            $insert->execute([$this->dailyCapacity]);
+            // Re-read after insert
+            $stmt = $this->db->prepare($sql);
+            $stmt->execute();
+            $row = $stmt->fetch();
+        }
+        return $row;
     }
     
     /**
@@ -248,12 +271,16 @@ class PriorityNumberGenerator {
             $stmt = $this->db->prepare($sql);
             $stmt->execute([$userId, $newNumber]);
             
-            // Update queue status
+            // Update queue status; ensure today's row exists
             $sql = "UPDATE priority_queue_status 
                     SET current_priority_number = ?, last_served_number = ?, served_count = served_count + 1 
                     WHERE queue_date = CURDATE() AND is_active = 1";
             $stmt = $this->db->prepare($sql);
             $stmt->execute([$newNumber, $newNumber]);
+            if ($stmt->rowCount() === 0) {
+                $ins = $this->db->prepare("INSERT INTO priority_queue_status (current_priority_number, last_served_number, queue_date, daily_capacity, served_count, is_active) VALUES (?, ?, CURDATE(), ?, 1, 1)");
+                $ins->execute([$newNumber, $newNumber, $this->dailyCapacity]);
+            }
             
             // Log the action
             $this->logPriorityAction($priority['priority_id'], 'served', 'pending', 'served', $userId);
@@ -317,14 +344,15 @@ class PriorityNumberGenerator {
      * Get upcoming priority numbers for today
      */
     public function getUpcomingPriorityNumbers($limit = 10) {
+        $limit = (int)$limit;
+        if ($limit <= 0) { $limit = 10; }
         $sql = "SELECT p.*, c.first_name, c.last_name, c.account_number, c.contact_number 
                 FROM priority_numbers p 
                 JOIN customers c ON p.customer_id = c.customer_id 
                 WHERE p.service_date = CURDATE() AND p.status = 'pending' 
                 ORDER BY p.priority_number ASC 
-                LIMIT ?";
-        $stmt = $this->db->prepare($sql);
-        $stmt->execute([$limit]);
+                LIMIT {$limit}";
+        $stmt = $this->db->query($sql);
         return $stmt->fetchAll();
     }
     

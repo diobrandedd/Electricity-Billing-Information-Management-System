@@ -11,10 +11,11 @@ requireLogin();
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
     <link href="https://cdn.datatables.net/1.13.6/css/dataTables.bootstrap5.min.css" rel="stylesheet">
+    <link href="<?php echo url('css/socoteco-theme.css'); ?>" rel="stylesheet">
     <style>
         :root {
-            --primary-color: #667eea;
-            --secondary-color: #764ba2;
+            --primary-color: #FF9A00;
+            --secondary-color: #FFD93D;
             --success-color: #28a745;
             --warning-color: #ffc107;
             --danger-color: #dc3545;
@@ -24,11 +25,24 @@ requireLogin();
         body {
             background-color: #f8f9fa;
         }
+        .sidebar-overlay {
+            position: fixed;
+            inset: 0;
+            background: rgba(0,0,0,0.35);
+            z-index: 1039; /* below sidebar which is fixed */
+        }
         
         .sidebar {
             background: linear-gradient(135deg, var(--primary-color) 0%, var(--secondary-color) 100%);
             min-height: 100vh;
             box-shadow: 2px 0 10px rgba(0,0,0,0.1);
+            position: fixed;
+            top: 0;
+            left: 0;
+            bottom: 0;
+            overflow-y: auto;
+            width: 240px; /* default width */
+            z-index: 1040;
         }
         
         .sidebar .nav-link {
@@ -53,6 +67,31 @@ requireLogin();
         
         .main-content {
             padding: 20px;
+            margin-left: 0; /* default, overridden on md+ */
+        }
+
+        @media (min-width: 768px) {
+            .sidebar { width: 240px; }
+            .main-content { margin-left: 240px; }
+        }
+
+        @media (min-width: 992px) {
+            .sidebar { width: 260px; }
+            .main-content { margin-left: 260px; }
+        }
+
+        /* Mobile behavior: slide-in sidebar over content */
+        @media (max-width: 767.98px) {
+            .main-content { margin-left: 0 !important; }
+            .sidebar {
+                width: 80%;
+                max-width: 280px;
+                transform: translateX(-100%);
+                transition: transform .3s ease-in-out;
+            }
+            .sidebar.show {
+                transform: translateX(0);
+            }
         }
         
         .card {
@@ -94,7 +133,7 @@ requireLogin();
         }
         
         .stats-card {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            background: linear-gradient(135deg, var(--primary-color) 0%, var(--secondary-color) 100%);
             color: white;
             border-radius: 15px;
             padding: 20px;
@@ -124,132 +163,25 @@ requireLogin();
     </style>
 </head>
 <body>
+    <!-- Mobile overlay for sidebar -->
+    <div id="sidebarOverlay" class="sidebar-overlay d-md-none" style="display:none;"></div>
     <div class="container-fluid">
         <div class="row">
             <!-- Sidebar -->
-            <nav class="col-md-3 col-lg-2 d-md-block sidebar collapse">
-                <div class="position-sticky pt-3">
-                    <div class="text-center mb-4">
-                        <h4 class="text-white">
-                            <i class="fas fa-bolt me-2"></i>SOCOTECO II
-                        </h4>
-                        <small class="text-white-50">Billing System</small>
-                    </div>
-                    
-                    <ul class="nav flex-column">
-                        <li class="nav-item">
-                            <a class="nav-link <?php echo basename($_SERVER['PHP_SELF']) == 'dashboard.php' ? 'active' : ''; ?>" 
-                               href="<?php echo url('dashboard.php'); ?>">
-                                <i class="fas fa-tachometer-alt"></i>Dashboard
-                            </a>
-                        </li>
-                        
-                        <?php if (in_array($_SESSION['role'], ['admin', 'cashier'])): ?>
-                        <li class="nav-item">
-                            <a class="nav-link <?php echo basename($_SERVER['PHP_SELF']) == 'customers.php' ? 'active' : ''; ?>" 
-                               href="<?php echo url('customers.php'); ?>">
-                                <i class="fas fa-users"></i>Customers
-                            </a>
-                        </li>
-                        <?php endif; ?>
-                        
-                        <?php if (in_array($_SESSION['role'], ['admin', 'meter_reader'])): ?>
-                        <li class="nav-item">
-                            <a class="nav-link <?php echo basename($_SERVER['PHP_SELF']) == 'meter_readings.php' ? 'active' : ''; ?>" 
-                               href="<?php echo url('meter_readings.php'); ?>">
-                                <i class="fas fa-tachometer"></i>Meter Readings
-                            </a>
-                        </li>
-                        <?php endif; ?>
-                        
-                        <?php if (in_array($_SESSION['role'], ['admin', 'cashier'])): ?>
-                        <li class="nav-item">
-                            <a class="nav-link <?php echo basename($_SERVER['PHP_SELF']) == 'bills.php' ? 'active' : ''; ?>" 
-                               href="<?php echo url('bills.php'); ?>">
-                                <i class="fas fa-file-invoice"></i>Bills
-                            </a>
-                        </li>
-                        <?php endif; ?>
-                        
-                        <?php if (in_array($_SESSION['role'], ['admin', 'cashier'])): ?>
-                        <li class="nav-item">
-                            <a class="nav-link <?php echo basename($_SERVER['PHP_SELF']) == 'payments.php' ? 'active' : ''; ?>" 
-                               href="<?php echo url('payments.php'); ?>">
-                                <i class="fas fa-credit-card"></i>Payments
-                            </a>
-                        </li>
-                        <?php endif; ?>
-                        
-                        <?php if (in_array($_SESSION['role'], ['admin', 'cashier'])): ?>
-                        <li class="nav-item">
-                            <a class="nav-link <?php echo basename($_SERVER['PHP_SELF']) == 'priority_calling_system.php' ? 'active' : ''; ?>" 
-                               href="<?php echo url('priority_calling_system.php'); ?>">
-                                <i class="fas fa-microphone"></i>Priority Calling
-                            </a>
-                        </li>
-                        <?php endif; ?>
-                        
-                        <?php if (in_array($_SESSION['role'], ['admin', 'cashier'])): ?>
-                        <li class="nav-item">
-                            <a class="nav-link <?php echo basename($_SERVER['PHP_SELF']) == 'priority_queue_management.php' ? 'active' : ''; ?>" 
-                               href="<?php echo url('priority_queue_management.php'); ?>">
-                                <i class="fas fa-list"></i>Queue Management
-                            </a>
-                        </li>
-                        <?php endif; ?>
-                        
-                        <?php if (in_array($_SESSION['role'], ['admin'])): ?>
-                        <li class="nav-item">
-                            <a class="nav-link <?php echo basename($_SERVER['PHP_SELF']) == 'reports.php' ? 'active' : ''; ?>" 
-                               href="<?php echo url('reports.php'); ?>">
-                                <i class="fas fa-chart-bar"></i>Reports
-                            </a>
-                        </li>
-                        <?php endif; ?>
-                        
-                        <?php if (in_array($_SESSION['role'], ['admin'])): ?>
-                        <li class="nav-item">
-                            <a class="nav-link <?php echo basename($_SERVER['PHP_SELF']) == 'users.php' ? 'active' : ''; ?>" 
-                               href="<?php echo url('users.php'); ?>">
-                                <i class="fas fa-user-cog"></i>User Management
-                            </a>
-                        </li>
-                        <?php endif; ?>
-                        
-                        <?php if (in_array($_SESSION['role'], ['admin'])): ?>
-                        <li class="nav-item">
-                            <a class="nav-link <?php echo basename($_SERVER['PHP_SELF']) == 'settings.php' ? 'active' : ''; ?>" 
-                               href="<?php echo url('settings.php'); ?>">
-                                <i class="fas fa-cog"></i>Settings
-                            </a>
-                        </li>
-                        <?php endif; ?>
-                        
-                        <?php if (in_array($_SESSION['role'], ['admin'])): ?>
-                        <li class="nav-item">
-                            <a class="nav-link <?php echo basename($_SERVER['PHP_SELF']) == 'priority_settings.php' ? 'active' : ''; ?>" 
-                               href="<?php echo url('priority_settings.php'); ?>">
-                                <i class="fas fa-ticket-alt"></i>Priority Settings
-                            </a>
-                        </li>
-                        <?php endif; ?>
-                        <?php if (in_array($_SESSION['role'], ['admin'])): ?>
-                        <li class="nav-item">
-                            <a class="nav-link <?php echo basename($_SERVER['PHP_SELF']) == 'feedback_management.php' ? 'active' : ''; ?>" 
-                               href="<?php echo url('feedback_management.php'); ?>">
-                                <i class="fas fa-comments"></i>Feedback Management
-                            </a>
-                        </li>
-                        <?php endif; ?>
-                    </ul>
-                </div>
+            <nav id="adminSidebar" class="col-md-3 col-lg-2 d-md-block sidebar collapse">
+                <?php include __DIR__ . '/admin_sidebar.php'; ?>
             </nav>
             
             <!-- Main content -->
             <main class="col-md-9 ms-sm-auto col-lg-10 px-md-4 main-content">
                 <!-- Top Navigation -->
                 <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
-                    <h1 class="h2"><?php echo $page_title ?? 'Dashboard'; ?></h1>
+                    <div class="d-flex align-items-center gap-2">
+                        <button class="btn btn-outline-secondary d-md-none" type="button" data-bs-toggle="collapse" data-bs-target="#adminSidebar" aria-controls="adminSidebar" aria-expanded="false" aria-label="Toggle sidebar">
+                            <i class="fas fa-bars"></i>
+                        </button>
+                        <h1 class="h2 mb-0"><?php echo $page_title ?? 'Dashboard'; ?></h1>
+                    </div>
                     <div class="btn-toolbar mb-2 mb-md-0">
                         <div class="dropdown">
                             <button class="btn btn-outline-secondary dropdown-toggle" type="button" 

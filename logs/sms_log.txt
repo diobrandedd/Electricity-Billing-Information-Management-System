@@ -1,0 +1,27 @@
+[2025-10-19 13:39:54] Error sending SMS: fopen(): Unable to find the wrapper "https" - did you forget to enable it when you configured PHP?
+[2025-10-19 21:41:29] SMS sent successfully. ID: SEug97OrGCnJ01RiVwHop to: +639629737496
+[2025-10-19 13:41:50] Error sending SMS: fopen(): Unable to find the wrapper "https" - did you forget to enable it when you configured PHP?
+[2025-10-19 21:43:09] SMS sent successfully. ID: Vw5tZuo3mTcy4MhQctIz1 to: +639629737496
+[2025-10-19 21:43:32] SMS sent successfully. ID: C1OEnoV3aCaC-sobkJ7Ug to: +639629737496
+[2025-10-19 21:43:44] SMS sent successfully. ID: ErOXUC08XerYIGSwIE8j9 to: +639629737496
+[2025-10-19 21:47:54] SMS sent successfully. ID: pOxu23UNY9truHinYzQ6u to: +639629737496
+[2025-11-04 23:25:23] SMS sent successfully. ID: 28JlUP7nosFkVbqLgRYff to: +639631014585
+[2025-11-05 07:48:15] Invalid phone number format: 12351 (length: 5)
+[2025-11-05 07:48:15] Invalid phone number: 12351
+[2025-11-05 07:48:16] SMS sent successfully. ID: jZj0r80mXsJIYjowfNcCX to: +639631014585
+[2025-11-05 07:48:16] Invalid phone number format: 12351 (length: 5)
+[2025-11-05 07:48:16] Invalid phone number: 12351
+[2025-11-05 07:50:55] Invalid phone number format: 12351 (length: 5)
+[2025-11-05 07:50:55] Invalid phone number: 12351
+[2025-11-05 07:50:56] SMS sent successfully. ID: jJw3vLAq9E5NdEp0f6Cyn to: +639631014585
+[2025-11-05 07:50:56] Invalid phone number format: 12351 (length: 5)
+[2025-11-05 07:50:56] Invalid phone number: 12351
+[2025-11-05 07:50:57] Invalid phone number format: 12351 (length: 5)
+[2025-11-05 07:50:57] Invalid phone number: 12351
+[2025-11-05 07:50:58] SMS sent successfully. ID: ABz1OfFYmekY3xSm9zLGh to: +639631014585
+[2025-11-05 07:50:58] Invalid phone number format: 12351 (length: 5)
+[2025-11-05 07:50:58] Invalid phone number: 12351
+[2025-11-05 19:23:24] SMS sent successfully. ID: eO22EymXRwLWWlgZG5T9v to: +639631014585
+[2025-11-05 19:30:51] SMS sent successfully. ID: YG-isdOrWVjSlfgam0rzM to: +639631014585
+[2025-11-12 01:35:48] SMS sent successfully. ID: PW7QFh7xOh9KJKGE-gArK to: +639631014585
+[2025-11-13 09:43:44] SMS sent successfully. ID: UOh-G_qwI18pcoqtQoUJS to: +639631014585
